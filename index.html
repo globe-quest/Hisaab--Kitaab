@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#5f7a1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Daily Ledger</title>
+<style>
+:root{--ink:#26291f;--bar:#5f7a1c;--bg:#faf8f1;--card:#fff;--line:#e6e2d3;--mute:#6f7163;--acc:#5f7a1c;--tom:#e8452c;--cr:#d63a22;--dr:#5f7a1c;--warn:#fff6dc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+header{position:sticky;top:0;z-index:5;background:var(--bar);color:#fff;display:flex;align-items:center;gap:8px;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top))}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px}
+header button{font-size:22px;min-width:44px;height:44px;border-radius:10px}
+header button:active{background:#ffffff22}
+main{max-width:760px;margin:0 auto;padding:14px 14px 110px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.party{display:flex;align-items:center;gap:12px;width:100%;text-align:left}
+.party .nm{font-weight:700;font-size:16px}
+.party .sub{color:var(--mute);font-size:13px}
+.party .bal{margin-left:auto;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:middle}
+.CR{color:var(--cr)} .DR{color:var(--dr)} .NIL{color:var(--mute)}
+.tag.CR{background:#fde5df}.tag.DR{background:#e8f0d6}.tag.NIL{background:#efede3}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--bg);border-radius:10px;padding:10px}
+.stat small{display:block;color:var(--mute);font-size:12px}
+.stat b{font-size:16px;font-variant-numeric:tabular-nums}
+.stat.big{grid-column:1/-1;background:var(--bar);color:#fff}
+.stat.big small{color:#e8f0d6}.stat.big b{font-size:24px}
+.stat.big .tag{font-size:12px;background:#fff}
+.row{display:flex;gap:10px;align-items:center}
+.filter{display:flex;gap:8px;margin-bottom:12px}
+.filter input{flex:1;min-width:0}
+.entry{display:block;width:100%;text-align:left;padding:12px 14px}
+.entry .top{display:flex;justify-content:space-between;font-size:13px;color:var(--mute)}
+.entry .mid{display:flex;justify-content:space-between;gap:10px;margin:4px 0;font-weight:600}
+.entry .calc{font-size:13px;color:var(--mute)}
+.entry .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.entry .bot{display:flex;justify-content:space-between;border-top:1px dashed var(--line);margin-top:8px;padding-top:6px;font-size:13px}
+.entry.pay{border-left:5px solid var(--dr)} .entry.pur{border-left:5px solid var(--tom)}
+.empty{text-align:center;color:var(--mute);padding:30px 10px}
+.fab{position:fixed;left:0;right:0;bottom:0;display:flex;gap:10px;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%);max-width:760px;margin:0 auto}
+.btn{flex:1;min-height:52px;border-radius:12px;font-weight:700;font-size:16px;background:var(--acc);color:#fff;padding:0 14px}
+.btn.alt{background:#fff;color:var(--ink);border:1px solid #cfcab6}
+.btn.red{background:#fff;color:var(--cr);border:1.5px solid var(--tom)}
+.btn.tom{background:var(--tom);color:#fff}
+.btn:active{opacity:.8}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;font:inherit;font-size:17px;padding:12px;border:1px solid #cfcab6;border-radius:10px;background:#fff;color:var(--ink)}
+input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+.sheet{position:fixed;inset:0;z-index:20;background:#0008;display:none;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet>div{background:#fff;width:100%;max-width:760px;max-height:94vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.sheet h2{margin:0 0 6px;font-size:18px}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:4px;margin:8px 0}
+.seg button{flex:1;min-height:44px;border-radius:9px;font-weight:700;color:var(--mute)}
+.seg button.on{background:var(--bar);color:#fff}
+.total{background:var(--warn);border:1px solid #f0dfa8;border-radius:10px;padding:12px;margin-top:12px;display:flex;justify-content:space-between;font-weight:700;font-size:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.menu button{display:block;width:100%;text-align:left;padding:14px 6px;border-bottom:1px solid var(--line);font-size:16px}
+.menu small{display:block;color:var(--mute)}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#26291f;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:40;white-space:nowrap}
+#toast.on{opacity:1}
+#lock{position:fixed;inset:0;z-index:50;background:var(--bar);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px}
+#lock.on{display:flex} #lock input{max-width:220px;text-align:center;font-size:26px;letter-spacing:8px}
+#print{display:none}
+@media print{
+  header,.fab,.sheet,#toast,main,#lock{display:none!important}
+  body{background:#fff} #print{display:block;font:11px Arial,sans-serif;color:#000}
+  #print h2{margin:0 0 2px;font-size:18px} #print table{width:100%;border-collapse:collapse;margin-top:8px}
+  #print th,#print td{border:1px solid #777;padding:4px 5px;text-align:right} #print th{background:#ddd}
+  #print td.l,#print th.l{text-align:left} #print .sum td{font-weight:700;background:#eee}
+}
+</style>
+</head>
+<body>
+<div id="lock"><div style="font-size:20px;font-weight:700">Daily Ledger</div><div>Enter PIN</div>
+  <input id="pinIn" type="password" inputmode="numeric" maxlength="8" autocomplete="off"><button class="btn" style="flex:none;width:220px" id="pinGo">Unlock</button></div>
+<header><button id="back" aria-label="Back" hidden>&#8592;</button><h1 id="title">Daily Ledger</h1><button id="menuBtn" aria-label="Menu">&#8942;</button></header>
+<main id="main"></main>
+<div class="fab" id="fab"></div>
+<div class="sheet" id="sheet"><div id="sheetBody"></div></div>
+<div id="toast"></div>
+<div id="print"></div>
+<input type="file" id="restoreFile" accept=".json,application/json" hidden>
+<script>
+"use strict";
+const KEY="daily_ledger_v1";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const r2=n=>Math.round((Number(n)||0)*100+Number.EPSILON)/100;
+const money=n=>r2(Math.abs(n)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fdate=s=>{if(!s)return"";const[y,m,d]=s.split("-");return d+"-"+MON[+m-1]+"-"+y};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const side=b=>b>0?"CR":b<0?"DR":"NIL";   // b = credit - debit. CR = payable to party.
+
+function seed(){
+  return {parties:["PARTY 1","PARTY 2","PARTY 3","PARTY 4"].map((name,i)=>({id:"p"+(i+1),name})),pin:"",entries:[]};
+}
+let db; try{db=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!db||!Array.isArray(db.parties)||!Array.isArray(db.entries)) db=seed();
+let storageOK=true;
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));storageOK=true}catch(e){storageOK=false;toast("Could not save on this phone!")}}
+save();
+if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+let view={party:null,from:"",to:""};
+
+/* ---------- calculations ---------- */
+const totalOf=e=>r2((Number(e.weight)||0)*(Number(e.rate)||0));
+const drOf=e=>r2((Number(e.rent)||0)+(Number(e.payment)||0));
+function ledger(pid){              // sorted rows with running balance
+  const rows=db.entries.filter(e=>e.partyId===pid).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.ts-b.ts);
+  let bal=0; return rows.map(e=>{const cr=totalOf(e),dr=drOf(e);bal=r2(bal+cr-dr);return {...e,cr,dr,bal}});
+}
+function sums(rows){const s={dr:0,cr:0,weight:0,rent:0,pay:0};rows.forEach(r=>{s.dr+=r.dr;s.cr+=r.cr;s.weight+=Number(r.weight)||0;s.rent+=Number(r.rent)||0;s.pay+=Number(r.payment)||0});
+  for(const k in s)s[k]=k==="weight"?Math.round(s[k]*1000)/1000:r2(s[k]);s.bal=r2(s.cr-s.dr);return s}
+window.__calc={ledger,sums,db:()=>db};
+
+/* ---------- rendering ---------- */
+function render(){
+  const m=$("#main"),fab=$("#fab");
+  if(!view.party){
+    $("#title").textContent="Daily Ledger";$("#back").hidden=true;
+    let gt=0;
+    const cards=db.parties.map(p=>{const rows=ledger(p.id),s=sums(rows);gt=r2(gt+s.bal);const last=rows.length?fdate(rows[rows.length-1].date):"No entries yet";
+      return `<button class="card party" data-open="${p.id}"><div><div class="nm">${esc(p.name)}</div><div class="sub">${rows.length} entries &middot; ${last}</div></div>
+      <div class="bal ${side(s.bal)}">Rs ${money(s.bal)}<span class="tag ${side(s.bal)}">${side(s.bal)}</span></div></button>`}).join("");
+    m.innerHTML=`<div class="card"><div class="stats"><div class="stat big"><small>Total balance of all parties</small><b>Rs ${money(gt)}</b><span class="tag ${side(gt)}">${side(gt)}</span></div></div>
+      <div class="sub" style="color:var(--mute);font-size:12px;margin-top:8px">CR = payable to the party &middot; DR = advance / party owes you</div></div>${cards}`;
+    fab.innerHTML="";return;
+  }
+  const p=db.parties.find(x=>x.id===view.party); if(!p){view.party=null;return render()}
+  $("#title").textContent=p.name;$("#back").hidden=false;
+  const all=ledger(p.id);
+  const rows=all.filter(r=>(!view.from||r.date>=view.from)&&(!view.to||r.date<=view.to));
+  const s=sums(rows), closing=rows.length?rows[rows.length-1].bal:0;
+  const period=rows.length?fdate(rows[0].date)+" to "+fdate(rows[rows.length-1].date):"—";
+  const list=rows.length?rows.slice().reverse().map(r=>{
+    const isPay=!r.cr&&r.payment>0;
+    return `<button class="card entry ${isPay?"pay":"pur"}" data-edit="${r.id}">
+      <div class="top"><span>${fdate(r.date)}</span><span>${r.vehicle?"Vehicle "+esc(r.vehicle):""}</span></div>
+      ${r.cr?`<div class="mid"><span>Purchase <span class="calc">${Number(r.weight)} &times; ${money(r.rate)}</span></span><span class="amt CR">+ ${money(r.cr)}</span></div>`:""}
+      ${r.rent?`<div class="mid"><span>Rent (freight + loading)</span><span class="amt DR">&minus; ${money(r.rent)}</span></div>`:""}
+      ${r.payment?`<div class="mid"><span>Payment made</span><span class="amt DR">&minus; ${money(r.payment)}</span></div>`:""}
+      ${r.note?`<div class="calc">${esc(r.note)}</div>`:""}
+      <div class="bot"><span>Balance</span><b class="${side(r.bal)}">Rs ${money(r.bal)} ${side(r.bal)}</b></div></button>`}).join("")
+    :`<div class="empty">No entries${view.from||view.to?" in these dates":" yet"}.<br>Tap <b>+ Purchase</b> or <b>+ Payment</b> below.</div>`;
+  m.innerHTML=`<div class="card"><div class="stats">
+      <div class="stat big"><small>Closing balance &middot; ${period}</small><b>Rs ${money(closing)}</b><span class="tag ${side(closing)}">${side(closing)}</span></div>
+      <div class="stat"><small>Debit (DR) &darr;</small><b>${money(s.dr)}</b></div><div class="stat"><small>Credit (CR) &uarr;</small><b>${money(s.cr)}</b></div>
+      <div class="stat"><small>Total weight</small><b>${s.weight.toLocaleString("en-US",{maximumFractionDigits:3})}</b></div><div class="stat"><small>Payments made</small><b>${money(s.pay)}</b></div>
+    </div></div>
+    <div class="filter"><input type="date" id="fFrom" value="${view.from}" aria-label="From date"><input type="date" id="fTo" value="${view.to}" aria-label="To date">
+      ${view.from||view.to?'<button class="btn alt" style="flex:none;min-height:0" id="fClear">Clear</button>':""}</div>${list}`;
+  fab.innerHTML=`<button class="btn" data-new="pur">+ Purchase</button><button class="btn tom" data-new="pay">+ Payment</button>`;
+}
+
+/* ---------- entry form ---------- */
+let form=null;
+function openForm(kind,id){
+  const e=id?db.entries.find(x=>x.id===id):null;
+  if(e) kind=(totalOf(e)||e.vehicle||e.rent)?"pur":"pay";
+  form={kind,id:id||null};
+  const v=e||{date:today(),vehicle:"",weight:"",rate:"",rent:"",payment:"",note:""};
+  const n=x=>x?x:"";
+  $("#sheetBody").innerHTML=`<h2>${e?"Edit entry":"New entry"}</h2>
+    <div class="seg"><button data-kind="pur" class="${kind==="pur"?"on":""}">Purchase</button><button data-kind="pay" class="${kind==="pay"?"on":""}">Payment</button></div>
+    <label>Date</label><input type="date" id="eDate" value="${v.date}">
+    <div id="purBox" ${kind==="pur"?"":"hidden"}>
+      <label>Vehicle No</label><input id="eVeh" value="${esc(v.vehicle)}" autocapitalize="characters" autocomplete="off" placeholder="e.g. 4216GLT">
+      <div class="two"><div><label>Weight</label><input id="eW" type="number" inputmode="decimal" step="any" min="0" value="${n(v.weight)}" placeholder="0.000"></div>
+      <div><label>Rate (per unit)</label><input id="eR" type="number" inputmode="decimal" step="any" min="0" value="${n(v.rate)}" placeholder="0"></div></div>
+      <div class="total"><span>Total (Weight &times; Rate)</span><span id="eTot">0.00</span></div>
+      <label>Rent (freight + loading paid)</label><input id="eRent" type="number" inputmode="decimal" step="any" min="0" value="${n(v.rent)}" placeholder="0">
+    </div>
+    <div id="payBox" ${kind==="pay"?"":"hidden"}>
+      <label>Payment made (Rs)</label><input id="ePay" type="number" inputmode="decimal" step="any" min="0" value="${n(v.payment)}" placeholder="0">
+    </div>
+    <label>Note (optional)</label><input id="eNote" value="${esc(v.note)}" autocomplete="off">
+    <div class="row" style="margin-top:16px"><button class="btn alt" data-close>Cancel</button><button class="btn" id="eSave">Save</button></div>
+    ${e?'<div class="row" style="margin-top:10px"><button class="btn red" id="eDel">Delete this entry</button></div>':""}`;
+  $("#sheet").classList.add("on"); calcTot();
+}
+function calcTot(){const t=$("#eTot");if(t)t.textContent=money(r2((+$("#eW").value||0)*(+$("#eR").value||0)))}
+function saveForm(){
+  const num=id=>{const x=parseFloat($(id).value);return isFinite(x)&&x>0?x:0};
+  const pur=form.kind==="pur";
+  const e={date:$("#eDate").value||today(),vehicle:pur?$("#eVeh").value.trim().toUpperCase():"",weight:pur?num("#eW"):0,rate:pur?num("#eR"):0,
+    rent:pur?num("#eRent"):0,payment:pur?0:num("#ePay"),note:$("#eNote").value.trim()};
+  if(pur&&!(e.weight&&e.rate)&&!e.rent) return toast("Enter weight and rate");
+  if(!pur&&!e.payment) return toast("Enter the payment amount");
+  if(form.id){Object.assign(db.entries.find(x=>x.id===form.id),e)} else db.entries.push({id:uid(),partyId:view.party,ts:Date.now(),...e});
+  save();closeSheet();render();if(storageOK)toast("Saved");
+}
+
+/* ---------- menu, export, backup ---------- */
+function openMenu(){
+  const inParty=!!view.party;
+  $("#sheetBody").innerHTML=`<h2>Menu</h2><div class="menu">
+    ${inParty?`<button data-act="print">Print / save PDF statement<small>Same layout as the paper ledger</small></button>
+    <button data-act="csv">Export this party to Excel (CSV)</button>
+    <button data-act="rename">Rename this party</button>`:""}
+    <button data-act="backup">Backup all data<small>Saves a file — keep a copy on WhatsApp / Google Drive</small></button>
+    <button data-act="restore">Restore from backup file</button>
+    <button data-act="addparty">Add a new party</button>
+    <button data-act="pin">${db.pin?"Change / remove PIN lock":"Set a PIN lock"}</button>
+    </div><div class="row" style="margin-top:14px"><button class="btn alt" data-close>Close</button></div>`;
+  $("#sheet").classList.add("on");
+}
+function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function curRows(){const all=ledger(view.party);return all.filter(r=>(!view.from||r.date>=view.from)&&(!view.to||r.date<=view.to))}
+function exportCSV(){
+  const p=db.parties.find(x=>x.id===view.party),q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
+  const lines=[["S#","Date","Vehicle No","Weight","Rate","Total","Rent","Payment Made","DR","CR","Balance","DR/CR","Note"].join(",")];
+  curRows().forEach((r,i)=>lines.push([i+1,fdate(r.date),q(r.vehicle),r.weight||"",r.rate||"",r.cr||"",r.rent||"",r.payment||"",r.dr,r.cr,Math.abs(r.bal),side(r.bal),q(r.note)].join(",")));
+  download(p.name.replace(/\s+/g,"_")+"_ledger_"+today()+".csv","﻿"+lines.join("\r\n"),"text/csv");
+}
+function printStatement(){
+  const p=db.parties.find(x=>x.id===view.party),rows=curRows(),s=sums(rows),cl=rows.length?rows[rows.length-1].bal:0;
+  const b=x=>x>0?"("+money(x)+")":money(x);
+  $("#print").innerHTML=`<h2>${esc(p.name)}</h2><div>From: ${rows.length?fdate(rows[0].date):""} &nbsp; To: ${rows.length?fdate(rows[rows.length-1].date):""}
+    &nbsp;|&nbsp; Debit: ${money(s.dr)} &nbsp;|&nbsp; Credit: ${money(s.cr)} &nbsp;|&nbsp; Closing balance: ${b(cl)} ${side(cl)}</div>
+    <table><tr><th>S#</th><th class="l">Date</th><th class="l">Vehicle No</th><th>Weight</th><th>Rate</th><th>Total</th><th>Rent</th><th>Payment</th><th>DR</th><th>CR</th><th>Balance</th><th>DR/CR</th></tr>
+    ${rows.map((r,i)=>`<tr><td>${i+1}</td><td class="l">${fdate(r.date)}</td><td class="l">${esc(r.vehicle)}</td><td>${r.weight||""}</td><td>${r.rate?money(r.rate):""}</td><td>${r.cr?money(r.cr):""}</td>
+      <td>${r.rent?money(r.rent):""}</td><td>${r.payment?money(r.payment):""}</td><td>${money(r.dr)}</td><td>${money(r.cr)}</td><td>${b(r.bal)}</td><td>${side(r.bal)}</td></tr>`).join("")}
+    <tr class="sum"><td colspan="3" class="l">TOTAL</td><td>${s.weight}</td><td></td><td>${money(s.cr)}</td><td>${money(s.rent)}</td><td>${money(s.pay)}</td><td>${money(s.dr)}</td><td>${money(s.cr)}</td><td>${b(cl)}</td><td>${side(cl)}</td></tr></table>`;
+  closeSheet();setTimeout(()=>window.print(),150);
+}
+function act(a){
+  if(a==="print")return printStatement();
+  if(a==="csv"){exportCSV();return closeSheet()}
+  if(a==="backup"){download("ledger_backup_"+today()+".json",JSON.stringify(db),"application/json");closeSheet();return toast("Backup file saved")}
+  if(a==="restore"){closeSheet();return $("#restoreFile").click()}
+  if(a==="rename"||a==="addparty"){
+    const p=a==="rename"?db.parties.find(x=>x.id===view.party):null;
+    $("#sheetBody").innerHTML=`<h2>${p?"Rename party":"New party"}</h2><label>Party name</label><input id="pName" value="${p?esc(p.name):""}" autocapitalize="characters">
+      <div class="row" style="margin-top:16px"><button class="btn alt" data-close>Cancel</button><button class="btn" id="pSave">Save</button></div>`;
+    $("#pSave").onclick=()=>{const n=$("#pName").value.trim().toUpperCase();if(!n)return toast("Enter a name");if(p)p.name=n;else db.parties.push({id:"p"+uid(),name:n});save();closeSheet();render()};return;
+  }
+  if(a==="pin"){
+    $("#sheetBody").innerHTML=`<h2>PIN lock</h2><label>New PIN (leave empty to remove the lock)</label><input id="pinNew" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+      <div class="row" style="margin-top:16px"><button class="btn alt" data-close>Cancel</button><button class="btn" id="pinSave">Save</button></div>`;
+    $("#pinSave").onclick=()=>{db.pin=$("#pinNew").value.trim();save();closeSheet();toast(db.pin?"PIN set":"PIN removed")};
+  }
+}
+$("#restoreFile").onchange=ev=>{const f=ev.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!Array.isArray(d.parties)||!Array.isArray(d.entries))throw 0;
+    if(confirm("Replace everything in the app with this backup ("+d.entries.length+" entries)?")){db=d;save();view={party:null,from:"",to:""};render();toast("Backup restored")}}
+    catch(e){toast("This is not a valid backup file")}ev.target.value=""};rd.readAsText(f)};
+
+/* ---------- wiring ---------- */
+function closeSheet(){$("#sheet").classList.remove("on")}
+let tt;function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("on"),1800)}
+document.addEventListener("click",ev=>{
+  const t=ev.target.closest("button");if(!t){if(ev.target.id==="sheet")closeSheet();return}
+  const d=t.dataset;
+  if(d.open){view={party:d.open,from:"",to:""};render();scrollTo(0,0)}
+  else if(d.new)openForm(d.new)
+  else if(d.edit)openForm(null,d.edit)
+  else if(d.kind){form.kind=d.kind;document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b===t));$("#purBox").hidden=d.kind!=="pur";$("#payBox").hidden=d.kind!=="pay"}
+  else if("close" in d)closeSheet()
+  else if(d.act)act(d.act)
+  else if(t.id==="eSave")saveForm()
+  else if(t.id==="eDel"){if(confirm("Delete this entry?")){db.entries=db.entries.filter(x=>x.id!==form.id);save();closeSheet();render();toast("Deleted")}}
+  else if(t.id==="back"){view.party=null;render()}
+  else if(t.id==="menuBtn")openMenu()
+  else if(t.id==="fClear"){view.from=view.to="";render()}
+});
+document.addEventListener("input",ev=>{if(ev.target.id==="eW"||ev.target.id==="eR")calcTot()});
+document.addEventListener("change",ev=>{if(ev.target.id==="fFrom"){view.from=ev.target.value;render()}if(ev.target.id==="fTo"){view.to=ev.target.value;render()}});
+function unlock(){if($("#pinIn").value===db.pin){$("#lock").classList.remove("on")}else{$("#pinIn").value="";toast("Wrong PIN")}}
+$("#pinGo").onclick=unlock;$("#pinIn").addEventListener("keydown",e=>{if(e.key==="Enter")unlock()});
+if(db.pin)$("#lock").classList.add("on");
+render();
+if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
