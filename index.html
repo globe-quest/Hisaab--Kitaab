@@ -257,40 +257,239 @@ function saveForm(){
   save();closeSheet();render();if(storageOK)toast("Entry saved");
 }
 
+/* ---------- real Excel (.xlsx) and PDF files, built inside the app (works offline) ---------- */
+const XP=(()=>{
+  const enc=new TextEncoder();
+  const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+  const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+  function zip(files){                       // files: [[name, string]] -> Blob (stored, no compression)
+    const parts=[],central=[];let off=0;
+    const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+    for(const[name,text]of files){
+      const nb=enc.encode(name),data=enc.encode(text),c=crc32(data);
+      const h=new DataView(new ArrayBuffer(30));
+      h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,dt,true);h.setUint16(12,dd,true);
+      h.setUint32(14,c,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,nb.length,true);h.setUint16(28,0,true);
+      parts.push(h,nb,data);
+      const ce=new DataView(new ArrayBuffer(46));
+      ce.setUint32(0,0x02014b50,true);ce.setUint16(4,20,true);ce.setUint16(6,20,true);ce.setUint16(8,0x0800,true);ce.setUint16(10,0,true);ce.setUint16(12,dt,true);ce.setUint16(14,dd,true);
+      ce.setUint32(16,c,true);ce.setUint32(20,data.length,true);ce.setUint32(24,data.length,true);ce.setUint16(28,nb.length,true);ce.setUint32(42,off,true);
+      central.push(ce,nb);off+=30+nb.length+data.length;
+    }
+    const csize=central.reduce((s,x)=>s+x.byteLength,0),e=new DataView(new ArrayBuffer(22));
+    e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,csize,true);e.setUint32(16,off,true);
+    return new Blob([...parts,...central,e],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  }
+  const x=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"");
+  const colL=i=>{let s="";i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=(i-m-1)/26}return s};
+  /* style ids: 1 header, 2 text, 3 money, 4 weight, 5 total money, 6 title, 7 total text, 8 total weight, 9 sub, 10 CR text, 11 DR text */
+  const STYLES=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.000"/><numFmt numFmtId="165" formatCode="#,##0.00"/></numFmts>
+<fonts count="6"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><b/><sz val="15"/><color rgb="FF131A33"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font><font><sz val="10"/><color rgb="FF5A6380"/><name val="Arial"/></font><font><b/><sz val="10"/><color rgb="FFD92D20"/><name val="Arial"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2340C8"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE9EEFF"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFB8C0D9"/></left><right style="thin"><color rgb="FFB8C0D9"/></right><top style="thin"><color rgb="FFB8C0D9"/></top><bottom style="thin"><color rgb="FFB8C0D9"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="12"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
+<xf numFmtId="165" fontId="3" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="164" fontId="3" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  function sheetXML(rows,widths,freeze){       // rows: [[ [value, style] ... ]], value number|string|null
+    let body="";
+    rows.forEach((r,ri)=>{let cells="";r.forEach((c,ci)=>{if(!c)return;const[v,s]=c,ref=colL(ci)+(ri+1);
+      if(v===null||v===undefined||v==="")cells+=`<c r="${ref}" s="${s||0}"/>`;
+      else if(typeof v==="number")cells+=`<c r="${ref}" s="${s||0}"><v>${v}</v></c>`;
+      else cells+=`<c r="${ref}" s="${s||0}" t="inlineStr"><is><t xml:space="preserve">${x(v)}</t></is></c>`});
+      body+=`<row r="${ri+1}"${ri===freeze-1?' ht="30" customHeight="1"':''}>${cells}</row>`});
+    const cols=widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+    const pane=freeze?`<pane ySplit="${freeze}" topLeftCell="A${freeze+1}" activePane="bottomLeft" state="frozen"/>`:"";
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews><cols>${cols}</cols><sheetData>${body}</sheetData><pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+  }
+  function xlsx(sheets){                     // sheets: [{name, rows, widths, freeze}]
+    const used=new Set(),names=sheets.map(s=>{let n=String(s.name).replace(/[\[\]:*?\/\\]/g," ").trim().slice(0,31)||"Sheet",b=n,i=2;while(used.has(n.toLowerCase()))n=b.slice(0,28)+" "+i++;used.add(n.toLowerCase());return n});
+    const f=[["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`],
+      ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ["xl/workbook.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n,i)=>`<sheet name="${x(n)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets></workbook>`],
+      ["xl/_rels/workbook.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ["xl/styles.xml",STYLES]];
+    sheets.forEach((s,i)=>f.push([`xl/worksheets/sheet${i+1}.xml`,sheetXML(s.rows,s.widths,s.freeze)]));
+    return zip(f);
+  }
+  /* ---- PDF (A4 landscape, built-in Helvetica) ---- */
+  const WR=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+  const WB=[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+  const clean=s=>String(s??"").replace(/[^\x20-\x7E]/g,"?");
+  const tw=(s,sz,b)=>{let w=0;for(const ch of clean(s))w+=(b?WB:WR)[ch.charCodeAt(0)-32]||556;return w*sz/1000};
+  const fit=(s,sz,b,max)=>{s=clean(s);if(tw(s,sz,b)<=max)return s;while(s&&tw(s+"..",sz,b)>max)s=s.slice(0,-1);return s+".."};
+  const pe=s=>clean(s).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+  const n2=v=>(Math.round(v*100)/100).toFixed(2);
+  function pdfDoc(){
+    const W=842,H=595,pages=[];let ops=null;
+    const api={W,H,M:30,
+      page(){ops=[];pages.push(ops);return api},
+      rect(x,y,w,h,rgb){ops.push(`${rgb.map(c=>(c/255).toFixed(3)).join(" ")} rg ${n2(x)} ${n2(H-y-h)} ${n2(w)} ${n2(h)} re f`);return api},
+      line(x1,y1,x2,y2,rgb,wd){ops.push(`${(wd||.5)} w ${(rgb||[184,192,217]).map(c=>(c/255).toFixed(3)).join(" ")} RG ${n2(x1)} ${n2(H-y1)} m ${n2(x2)} ${n2(H-y2)} l S`);return api},
+      text(s,x,y,sz,o){o=o||{};const b=!!o.bold,t=o.max?fit(s,sz,b,o.max):clean(s);let xx=x;
+        if(o.align==="right")xx=x-tw(t,sz,b);else if(o.align==="center")xx=x-tw(t,sz,b)/2;
+        const c=(o.rgb||[19,26,51]).map(v=>(v/255).toFixed(3)).join(" ");
+        ops.push(`BT ${c} rg /${b?"F2":"F1"} ${sz} Tf ${n2(xx)} ${n2(H-y)} Td (${pe(t)}) Tj ET`);return api},
+      count:()=>pages.length,
+      eachPage(fn){pages.forEach((p,i)=>{ops=p;fn(i,pages.length)})},
+      blob(){
+        const objs=[];const add=s=>{objs.push(s);return objs.length};
+        add("<< /Type /Catalog /Pages 2 0 R >>");add("");
+        add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+        add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+        const kids=[];
+        pages.forEach(p=>{const s=p.join("\n");const c=add(`<< /Length ${s.length} >>\nstream\n${s}\nendstream`);
+          kids.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${c} 0 R >>`))});
+        objs[1]=`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`;
+        let out="%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";const offs=[];
+        objs.forEach((o,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`});
+        const xr=out.length;out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("");
+        out+=`trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${xr}\n%%EOF`;
+        const b=new Uint8Array(out.length);for(let i=0;i<out.length;i++)b[i]=out.charCodeAt(i)&255;
+        return new Blob([b],{type:"application/pdf"});
+      }};
+    return api;
+  }
+  return {xlsx,pdfDoc,tw};
+})();
+
+/* rows for one party, honouring the date filter; adds an opening balance line when entries before the start date exist */
+function statement(pid,from,to){
+  const all=ledger(pid);let opening=0,hasOpen=false;
+  if(from){const before=all.filter(r=>r.date<from);if(before.length){opening=before[before.length-1].bal;hasOpen=true}}
+  const rows=all.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+  const s=sums(rows),closing=rows.length?rows[rows.length-1].bal:opening;
+  const start=from||(rows[0]&&rows[0].date)||"",end=to||(rows.length&&rows[rows.length-1].date)||"";
+  return {p:db.parties.find(x=>x.id===pid),rows,s,opening,hasOpen,closing,start,end};
+}
+const sideOf=b=>side(b);   // CR = payable to party, DR = advance
+const HEAD=["S#","Date","Vehicle No","Weight","Rate","Total (Weight x Rate)","Rent (Freight + Loading)","Payment Made","DR (Debit)","CR (Credit)","Balance","DR/CR","Note"];
+function partySheet(st){
+  const t=(v,s)=>[v,s],R=[];
+  R.push([t(st.p.name,6)]);
+  R.push([t((st.start?"From "+fdate(st.start):"")+(st.end?"  to  "+fdate(st.end):"")+"     |     Closing balance: Rs "+money(st.closing)+" "+sideOf(st.closing)+"     |     CR = payable to party, DR = advance",9)]);
+  R.push([]);
+  R.push(HEAD.map(h=>t(h,1)));
+  let i=0;
+  if(st.hasOpen)R.push([t("",2),t(fdate(st.start),2),t("Opening balance",2),t(null,4),t(null,3),t(null,3),t(null,3),t(null,3),t(null,3),t(null,3),t(Math.abs(st.opening),3),t(sideOf(st.opening),sideOf(st.opening)==="CR"?10:11),t("",2)]);
+  st.rows.forEach(r=>{i++;R.push([t(i,2),t(fdate(r.date),2),t(r.vehicle||(r.payment&&!r.cr?"Payment":""),2),t(Number(r.weight)||null,4),t(Number(r.rate)||null,3),t(r.cr||null,3),t(Number(r.rent)||null,3),t(Number(r.payment)||null,3),t(r.dr,3),t(r.cr,3),t(Math.abs(r.bal),3),t(sideOf(r.bal),sideOf(r.bal)==="CR"?10:11),t(r.note||"",2)])});
+  R.push([t("TOTAL",7),t("",7),t("",7),t(st.s.weight,8),t("",7),t(st.s.cr,5),t(st.s.rent,5),t(st.s.pay,5),t(st.s.dr,5),t(st.s.cr,5),t(Math.abs(st.closing),5),t(sideOf(st.closing),7),t("",7)]);
+  return {name:st.p.name,rows:R,widths:[6,13,14,11,11,15,15,15,15,15,15,8,24],freeze:4};
+}
+function summarySheet(list){
+  const t=(v,s)=>[v,s],R=[[t("HISAAB KITAAB  -  ALL PARTIES",6)],[t("Made on "+fdate(today())+"     |     CR = payable to party, DR = advance",9)],[]];
+  R.push(["S#","Party","Entries","Total Weight","Purchases (CR)","Rent","Payments","Total DR","Balance","DR/CR"].map(h=>t(h,1)));
+  let g={n:0,w:0,cr:0,rent:0,pay:0,dr:0,bal:0};
+  list.forEach((st,i)=>{R.push([t(i+1,2),t(st.p.name,2),t(st.rows.length,2),t(st.s.weight,4),t(st.s.cr,3),t(st.s.rent,3),t(st.s.pay,3),t(st.s.dr,3),t(Math.abs(st.closing),3),t(sideOf(st.closing),sideOf(st.closing)==="CR"?10:11)]);
+    g.n+=st.rows.length;g.w+=st.s.weight;g.cr+=st.s.cr;g.rent+=st.s.rent;g.pay+=st.s.pay;g.dr+=st.s.dr;g.bal+=st.closing});
+  g.bal=r2(g.bal);
+  R.push([t("",7),t("TOTAL",7),t(g.n,7),t(Math.round(g.w*1000)/1000,8),t(r2(g.cr),5),t(r2(g.rent),5),t(r2(g.pay),5),t(r2(g.dr),5),t(Math.abs(g.bal),5),t(sideOf(g.bal),7)]);
+  return {name:"Summary",rows:R,widths:[6,28,9,13,16,14,15,15,16,8],freeze:4};
+}
+/* PDF drawing */
+const PCOL=[["S#",22,"c"],["Date",60,"l"],["Vehicle No",70,"l"],["Weight",50,"r"],["Rate",56,"r"],["Total",70,"r"],["Rent",60,"r"],["Payment",70,"r"],["DR",72,"r"],["CR",72,"r"],["Balance",78,"r"],["DR/CR",36,"c"],["Note",66,"l"]];
+const BLUE=[35,64,200],INK=[19,26,51],MUTE=[90,99,128],TINT=[233,238,255],REDC=[217,45,32],GRN=[14,122,86];
+function pdfStatement(doc,st){
+  const M=doc.M,RH=17;let y;
+  const header=first=>{doc.page();y=M;
+    doc.rect(0,0,doc.W,6,BLUE);
+    doc.text(st.p.name,M,y+18,17,{bold:true,max:520});
+    doc.text("Statement"+(st.start?"  "+fdate(st.start)+"  to  "+fdate(st.end):""),M,y+35,10,{rgb:MUTE});
+    if(first){const bx=[["Debit (DR)",money(st.s.dr),INK],["Credit (CR)",money(st.s.cr),INK],["Closing balance","Rs "+money(st.closing)+"  "+sideOf(st.closing),sideOf(st.closing)==="CR"?REDC:GRN]];
+      let x=doc.W-M;[...bx].reverse().forEach(([l,v,c],i)=>{const w=i===0?170:118;x-=w;doc.rect(x,y,w-6,42,TINT);doc.text(l,x+9,y+15,8,{rgb:MUTE});doc.text(v,x+9,y+33,i===0?13:12,{bold:true,rgb:c})})}
+    else doc.text("continued",doc.W-M,y+18,9,{align:"right",rgb:MUTE});
+    y+=56;
+    doc.rect(M,y,doc.W-2*M,RH+4,BLUE);let x=M;
+    PCOL.forEach(([h,w,a])=>{doc.text(h,a==="r"?x+w-5:a==="c"?x+w/2:x+5,y+14,8,{bold:true,rgb:[255,255,255],align:a==="r"?"right":a==="c"?"center":"left"});x+=w});
+    y+=RH+4};
+  const row=(cells,o)=>{o=o||{};if(y+RH>doc.H-M-18)header(false);
+    if(o.fill)doc.rect(M,y,doc.W-2*M,RH,o.fill);
+    let x=M;PCOL.forEach(([h,w,a],i)=>{const v=cells[i];if(v!==""&&v!=null){const c=o.colors&&o.colors[i]||INK;
+      doc.text(String(v),a==="r"?x+w-5:a==="c"?x+w/2:x+5,y+12,8.2,{bold:!!o.bold||(o.boldCols&&o.boldCols.includes(i)),rgb:c,max:w-8,align:a==="r"?"right":a==="c"?"center":"left"})}x+=w});
+    doc.line(M,y+RH,doc.W-M,y+RH);y+=RH};
+  header(true);
+  if(st.hasOpen)row(["",fdate(st.start),"Opening balance","","","","","","","",money(st.opening),sideOf(st.opening),""],{fill:[246,247,251],colors:{11:sideOf(st.opening)==="CR"?REDC:GRN}});
+  if(!st.rows.length)row(["","","No entries in these dates","","","","","","","","","",""]);
+  st.rows.forEach((r,i)=>{const sd=sideOf(r.bal);
+    row([i+1,fdate(r.date),r.vehicle||(r.payment&&!r.cr?"Payment":""),r.weight?Number(r.weight).toLocaleString("en-US",{maximumFractionDigits:3}):"",r.rate?money(r.rate):"",r.cr?money(r.cr):"",r.rent?money(r.rent):"",r.payment?money(r.payment):"",money(r.dr),money(r.cr),money(r.bal),sd,r.note||""],
+      {fill:i%2?[249,250,253]:null,colors:{11:sd==="CR"?REDC:sd==="DR"?GRN:MUTE},boldCols:[10]})});
+  row(["","TOTAL","",st.s.weight.toLocaleString("en-US",{maximumFractionDigits:3}),"",money(st.s.cr),money(st.s.rent),money(st.s.pay),money(st.s.dr),money(st.s.cr),money(st.closing),sideOf(st.closing),""],{fill:TINT,bold:true,colors:{11:sideOf(st.closing)==="CR"?REDC:GRN}});
+  y+=14;if(y<doc.H-M-30)doc.text("CR (in red) = amount payable to the party.   DR (in green) = advance paid to the party.",M,y,8,{rgb:MUTE});
+}
+function pdfSummary(doc,list){
+  const M=doc.M;doc.page();doc.rect(0,0,doc.W,6,BLUE);
+  doc.text("Hisaab Kitaab - All parties",M,M+18,17,{bold:true});doc.text("Made on "+fdate(today()),M,M+35,10,{rgb:MUTE});
+  const C=[["Party",230,"l"],["Entries",60,"r"],["Weight",80,"r"],["Purchases (CR)",100,"r"],["Payments + Rent (DR)",130,"r"],["Balance",120,"r"],["DR/CR",60,"c"]];
+  let y=M+60;doc.rect(M,y,doc.W-2*M,22,BLUE);let x=M;
+  C.forEach(([h,w,a])=>{doc.text(h,a==="r"?x+w-6:a==="c"?x+w/2:x+6,y+15,9,{bold:true,rgb:[255,255,255],align:a==="r"?"right":a==="c"?"center":"left"});x+=w});y+=22;
+  let g=0;
+  const line=(v,o)=>{o=o||{};if(o.fill)doc.rect(M,y,doc.W-2*M,22,o.fill);let x=M;C.forEach(([h,w,a],i)=>{doc.text(String(v[i]),a==="r"?x+w-6:a==="c"?x+w/2:x+6,y+15,10,{bold:!!o.bold||i===5,max:w-10,rgb:i===6?o.c:INK,align:a==="r"?"right":a==="c"?"center":"left"});x+=w});doc.line(M,y+22,doc.W-M,y+22);y+=22};
+  list.forEach(st=>{g=r2(g+st.closing);const sd=sideOf(st.closing);line([st.p.name,st.rows.length,st.s.weight.toLocaleString("en-US",{maximumFractionDigits:3}),money(st.s.cr),money(st.s.dr),"Rs "+money(st.closing),sd],{c:sd==="CR"?REDC:sd==="DR"?GRN:MUTE})});
+  line(["TOTAL","","","","","Rs "+money(g),sideOf(g)],{fill:TINT,bold:true,c:sideOf(g)==="CR"?REDC:GRN});
+  doc.text("CR (in red) = amount payable to the party.   DR (in green) = advance paid to the party.   Each party's full statement follows on the next pages.",M,y+18,8.5,{rgb:MUTE});
+}
+function pdfFooters(doc){doc.eachPage((i,n)=>{doc.text("Hisaab Kitaab   |   made on "+fdate(today()),doc.M,doc.H-14,7.5,{rgb:MUTE});doc.text("Page "+(i+1)+" of "+n,doc.W-doc.M,doc.H-14,7.5,{rgb:MUTE,align:"right"})})}
+const safeName=s=>String(s).replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")||"ledger";
+
+/* give the file to the client: share sheet (WhatsApp, Gmail...) when the phone supports it, otherwise save to Downloads */
+function deliver(blob,name,what){
+  let file=null;try{file=new File([blob],name,{type:blob.type})}catch(e){}
+  const canShare=!!(file&&navigator.canShare&&navigator.canShare({files:[file]}));
+  if(!canShare){saveBlob(blob,name);closeSheet();return toast(what+" saved in Downloads")}
+  $("#sheetBody").innerHTML=`<h2>${what} is ready</h2><p class="hint" style="margin:0 4px 14px">${esc(name)}</p>
+    <div class="row" style="flex-direction:column;gap:10px;margin-top:6px"><button class="btn blue" id="shareIt">Send (WhatsApp, Gmail…)</button><button class="btn gold" id="saveIt">Save to phone</button><button class="btn ghost" data-close>Close</button></div>`;
+  $("#sheet").classList.add("on");
+  $("#shareIt").onclick=()=>{navigator.share({files:[file],title:name}).then(()=>closeSheet()).catch(()=>{})};
+  $("#saveIt").onclick=()=>{saveBlob(blob,name);closeSheet();toast(what+" saved in Downloads")};
+}
+function saveBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+function exportFile(kind,scope){
+  try{
+    const list=scope==="one"?[statement(view.party,view.from,view.to)]:db.parties.map(p=>statement(p.id,"",""));
+    const tag=scope==="one"?safeName(list[0].p.name):"All_Parties";
+    if(kind==="xlsx"){const sheets=(scope==="one"?[]:[summarySheet(list)]).concat(list.map(partySheet));
+      return deliver(XP.xlsx(sheets),tag+"_"+today()+".xlsx","Excel file")}
+    const doc=XP.pdfDoc();if(scope!=="one")pdfSummary(doc,list);list.forEach(st=>pdfStatement(doc,st));pdfFooters(doc);
+    deliver(doc.blob(),tag+"_"+today()+".pdf","PDF");
+  }catch(e){console.error(e);toast("Could not make the file")}
+}
+window.__export={XP,statement,partySheet,summarySheet,exportFile};
+
 /* ---------- menu, export, backup ---------- */
 function openMenu(){
   const inParty=!!view.party;
   const it=(k,t,s)=>`<button data-act="${k}"><span>${t}${s?`<small>${s}</small>`:""}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>`;
-  $("#sheetBody").innerHTML=`<h2>${inParty?"This party":"Menu"}</h2><div class="menu">
-    ${inParty?it("print","Print or save as PDF","Statement in the paper ledger layout")+it("csv","Export to Excel","Saves a CSV file of this party")+it("rename","Rename this party"):""}
-    ${it("backup","Back up all data","Saves a file. Keep a copy on WhatsApp or Google Drive")}${it("restore","Restore from a backup file")}
-    ${it("addparty","Add a new party")}${it("pin",db.pin?"Change or remove PIN":"Set a PIN lock")}
+  const dl=view.from||view.to?"Only the dates you picked":"Every entry of this party";
+  $("#sheetBody").innerHTML=`<h2>${inParty?"This party":"Menu"}</h2>
+    <div class="menu">
+    ${inParty?it("pdf1","Download PDF statement",dl+". Ready to print or send")+it("xls1","Download Excel file",dl+". Opens in Excel or Google Sheets"):it("pdfall","Download PDF of all parties","Summary page, then each party's statement")+it("xlsall","Download Excel of all parties","One sheet per party, plus a summary")}
+    </div>
+    <h2 class="sec" style="margin:18px 4px 8px">Settings</h2>
+    <div class="menu">
+    ${inParty?it("rename","Rename this party"):it("addparty","Add a new party")}${it("pin",db.pin?"Change or remove PIN":"Set a PIN lock")}
+    ${it("backup","Safety backup (for a new phone)","Special file only this app can read. Not for viewing")}${it("restore","Restore from safety backup")}
     </div><div class="row"><button class="btn ghost" data-close>Close</button></div>`;
   $("#sheet").classList.add("on");
 }
 function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function curRows(){const all=ledger(view.party);return all.filter(r=>(!view.from||r.date>=view.from)&&(!view.to||r.date<=view.to))}
-function exportCSV(){
-  const p=db.parties.find(x=>x.id===view.party),q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
-  const lines=[["S#","Date","Vehicle No","Weight","Rate","Total","Rent","Payment Made","DR","CR","Balance","DR/CR","Note"].join(",")];
-  curRows().forEach((r,i)=>lines.push([i+1,fdate(r.date),q(r.vehicle),r.weight||"",r.rate||"",r.cr||"",r.rent||"",r.payment||"",r.dr,r.cr,Math.abs(r.bal),side(r.bal),q(r.note)].join(",")));
-  download(p.name.replace(/\s+/g,"_")+"_ledger_"+today()+".csv","﻿"+lines.join("\r\n"),"text/csv");
-}
-function printStatement(){
-  const p=db.parties.find(x=>x.id===view.party),rows=curRows(),s=sums(rows),cl=rows.length?rows[rows.length-1].bal:0;
-  const b=x=>x>0?"("+money(x)+")":money(x);
-  $("#print").innerHTML=`<h2>${esc(p.name)}</h2><div>From: ${rows.length?fdate(rows[0].date):""} &nbsp; To: ${rows.length?fdate(rows[rows.length-1].date):""}
-    &nbsp;|&nbsp; Debit: ${money(s.dr)} &nbsp;|&nbsp; Credit: ${money(s.cr)} &nbsp;|&nbsp; Closing balance: ${b(cl)} ${side(cl)}</div>
-    <table><tr><th>S#</th><th class="l">Date</th><th class="l">Vehicle No</th><th>Weight</th><th>Rate</th><th>Total</th><th>Rent</th><th>Payment</th><th>DR</th><th>CR</th><th>Balance</th><th>DR/CR</th></tr>
-    ${rows.map((r,i)=>`<tr><td>${i+1}</td><td class="l">${fdate(r.date)}</td><td class="l">${esc(r.vehicle)}</td><td>${r.weight||""}</td><td>${r.rate?money(r.rate):""}</td><td>${r.cr?money(r.cr):""}</td>
-      <td>${r.rent?money(r.rent):""}</td><td>${r.payment?money(r.payment):""}</td><td>${money(r.dr)}</td><td>${money(r.cr)}</td><td>${b(r.bal)}</td><td>${side(r.bal)}</td></tr>`).join("")}
-    <tr class="sum"><td colspan="3" class="l">TOTAL</td><td>${s.weight}</td><td></td><td>${money(s.cr)}</td><td>${money(s.rent)}</td><td>${money(s.pay)}</td><td>${money(s.dr)}</td><td>${money(s.cr)}</td><td>${b(cl)}</td><td>${side(cl)}</td></tr></table>`;
-  closeSheet();setTimeout(()=>window.print(),150);
-}
 function act(a){
-  if(a==="print")return printStatement();
-  if(a==="csv"){exportCSV();return closeSheet()}
-  if(a==="backup"){download("hisaab_kitaab_backup_"+today()+".json",JSON.stringify(db),"application/json");closeSheet();return toast("Backup file saved")}
+  if(a==="pdf1")return exportFile("pdf","one");
+  if(a==="xls1")return exportFile("xlsx","one");
+  if(a==="pdfall")return exportFile("pdf","all");
+  if(a==="xlsall")return exportFile("xlsx","all");
+  if(a==="backup"){return deliver(new Blob([JSON.stringify(db)],{type:"application/json"}),"hisaab_kitaab_SAFETY_BACKUP_"+today()+".json","Safety backup")}
   if(a==="restore"){closeSheet();return $("#restoreFile").click()}
   if(a==="rename"||a==="addparty"){
     const p=a==="rename"?db.parties.find(x=>x.id===view.party):null;
